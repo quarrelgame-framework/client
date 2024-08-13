@@ -16,6 +16,7 @@ export interface KeyboardEvents
     onKeyReleased?(inputObject: InputObject): void;
 }
 
+@Controller({})
 export default class Input implements OnStart, OnInit, OnRespawn
 {
     protected MouseEventListeners: Set<MouseEvents> = new Set();
