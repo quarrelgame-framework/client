@@ -5,43 +5,43 @@ import { Input } from "@quarrelgame-framework/common";
 import { CameraController3D } from "module/camera/camera3d";
 
 export abstract class CombatController3D extends CombatController
-{
-    constructor(private readonly hudController: HudController, private readonly cameraController3D: CameraController3D)
     {
-        super();
-    }
-
-    onInit()
-    {
-    }
-
-    protected keybindMap: Map<Enum.KeyCode, Input> = new Map();
-
-    private lockOnTracker?: RBXScriptConnection;
-    public LockOn(target?: Model & { PrimaryPart: Instance; }, doFX?: boolean)
-    {
-        if (!this.IsEnabled())
-            return false;
-
-        if (target)
+        constructor(private readonly hudController: HudController, private readonly cameraController3D: CameraController3D)
         {
-            const primaryPart = target?.PrimaryPart;
-            this.lockOnTarget = primaryPart;
+            super();
+        }
 
-            if (this.lockOnTracker)
-                this.lockOnTracker?.Disconnect?.();
+        onInit()
+        {
+        }
 
-            if (this.lockOnTarget)
+        protected keybindMap: Map<Enum.KeyCode, Input> = new Map();
+
+        private lockOnTracker?: RBXScriptConnection;
+        public LockOn(target?: Model & { PrimaryPart: Instance; }, doFX?: boolean)
+        {
+            if (!this.IsEnabled())
+                return false;
+
+            if (target)
             {
-                this.hudController.SetLockOnTarget(target);
-                this.hudController.SetLockOnEffectEnabled(doFX);
-                this.cameraController3D.SetLockOnTarget(this.lockOnTarget);
+                const primaryPart = target?.PrimaryPart;
+                this.lockOnTarget = primaryPart;
 
-                this.lockOnTracker = primaryPart.Destroying.Once(() =>
+                if (this.lockOnTracker)
+                    this.lockOnTracker?.Disconnect?.();
+
+                if (this.lockOnTarget)
                 {
-                    if (this.lockOnTarget === primaryPart)
-                        this.LockOn(undefined);
-                });
+                    this.hudController.SetLockOnTarget(target);
+                    this.hudController.SetLockOnEffectEnabled(doFX);
+                    this.cameraController3D.SetLockOnTarget(this.lockOnTarget);
+
+                    this.lockOnTracker = primaryPart.Destroying.Once(() =>
+                    {
+                        if (this.lockOnTarget === primaryPart)
+                            this.LockOn(undefined);
+                    });
 
                 return;
             }
