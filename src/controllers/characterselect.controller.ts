@@ -6,7 +6,7 @@ import CharacterSelect from "ui/characterselect";
 import { Controller, Modding, OnInit, OnStart } from "@flamework/core";
 import { Players } from "@rbxts/services";
 import { Functions } from "network";
-import { Character } from "@quarrelgame-framework/common";
+import { Animator, Character } from "@quarrelgame-framework/common";
 
 export interface OnCharacterSelected {
     onCharacterSelected(charcter: Character.Character): void;
@@ -56,6 +56,8 @@ export default class CharacterSelectController implements OnStart, OnInit {
         this.characters.clear();
         for (const [charname, char] of characters)
             this.characters.set(charname, char);
+
+        Animator.RegisterCharacters(characters);
     }
 
     public BindCharacterSelectInstance(screengui: ScreenGui) {
@@ -72,14 +74,8 @@ export default class CharacterSelectController implements OnStart, OnInit {
                             this.currentlySelectedCharacter &&
                             selectedCharacter === this.currentlySelectedCharacter
                         ) {
-                            Functions.SelectCharacter(selectedCharacter.Name).then(() =>
-                                Functions.RespawnCharacter(selectedCharacter.Name)
-                                    .then(() => {
-                                        for (const listener of this.characterSelectedListeners)
-                                            listener.onCharacterSelected(selectedCharacter);
-                                    })
-                                    .finally(() => this.CloseCharacterSelect()),
-                            );
+                            for (const listener of this.characterSelectedListeners)
+                                listener.onCharacterSelected(selectedCharacter);
                         } else {
                             this.currentlySelectedCharacter = selectedCharacter;
                         }
