@@ -1,35 +1,28 @@
-import { Components } from "@flamework/components";
-import { Controller, Dependency, OnPhysics, OnRender, OnStart, OnTick } from "@flamework/core";
+import {  OnRender, OnStart, OnTick } from "@flamework/core";
 
-import { Gamepad, GamepadButtons } from "controllers/gamepad.controller";
-import { Keyboard } from "controllers/keyboard.controller";
 import Client, { OnRespawn } from "module/game/client";
+import {  GamepadButtons } from "controllers/gamepad.controller";
 import { OnMatchRespawn } from "controllers/match.controller";
-import { Mouse } from "controllers/mouse.controller";
 import { CharacterController } from "module/character";
 import { Functions } from "network";
 
-import Make from "@rbxts/make";
 import { Players, Workspace } from "@rbxts/services";
 import { HumanoidController } from "module/character/humanoid";
-import { StatefulComponent, EntityState, isStateNeutral, NullifyYComponent, SessionType, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, Input, InputMode, InputResult, isCurrentMotionDashInput } from "@quarrelgame-framework/common";
-import type { Map as _Map } from "@quarrelgame-framework/common";
+import {  EntityState,  NullifyYComponent, SessionType, GenerateRelativeVectorFromNormalId,  InputMode, InputResult } from "@quarrelgame-framework/common";
+import { Map as _Map } from "@quarrelgame-framework/common";
 import { MatchController, OnArenaChange } from "controllers/match.controller";
 
 import InputHandler from "controllers/input.controller";
+import Make from "@rbxts/make";
 
-interface ChangedSignals
-{
-    [stateName: string]: unknown;
-}
-
-export abstract class CharacterController2D extends CharacterController implements OnStart, OnMatchRespawn, OnRender, OnArenaChange
+export abstract class CharacterController2D extends CharacterController implements OnStart, OnMatchRespawn, OnRender, OnArenaChange, OnRespawn, OnTick
 {
     private axis?: Vector3;
 
     protected _arena?: _Map.Arena;
 
     constructor(
+        protected readonly client: Client,
         protected readonly humanoidController: HumanoidController,
         protected readonly matchController: MatchController,
         protected readonly input: InputHandler,
@@ -103,15 +96,17 @@ export abstract class CharacterController2D extends CharacterController implemen
     }
 
     private lastFrameNormal: Vector3 = Vector3.zero;
+    private axisRotatedOrigin: CFrame = new CFrame();
     onRender()
     {
         const axis = this.axis,
             character = this.character,
             enabled = this.enabled,
-            match = this.matchController.GetMatchData();
+            match = this.matchController.GetMatchData(),
+            entity = this.GetEntity();
 
         if (!enabled)
-            return;
+            throw "not enabled"
 
         if (!character)
             throw "no character";
@@ -122,8 +117,8 @@ export abstract class CharacterController2D extends CharacterController implemen
         if (!axis)
             throw "no axis";
 
-        // else
-        // print("bound now :D");
+        if (!entity)
+            throw "no entity";
 
         const { X, Z } = axis;
         if (this.alignPos?.Attachment0)
@@ -138,7 +133,7 @@ export abstract class CharacterController2D extends CharacterController implemen
             | Humanoid
             | undefined;
 
-        const axisDirection = CFrame.lookAt(Vector3.zero, axis);
+        const axisDirection = CFrame.lookAlong(Vector3.zero, axis);
         let axisRotatedOrigin: CFrame;
 
         const sessionType = match.Participants.size() > 1 ? SessionType.Multiplayer : SessionType.Singleplayer;
@@ -156,7 +151,7 @@ export abstract class CharacterController2D extends CharacterController implemen
                     assert(targetPlayer, "no target player");
                     assert(targetPlayer.Character, "target player has no character");
 
-                    axisRotatedOrigin = CFrame.lookAt(
+                    this.axisRotatedOrigin = CFrame.lookAt(
                         NullifyYComponent(this.character!.GetPivot()).Position,
                         NullifyYComponent(targetPlayer.Character.GetPivot()).Position,
                     );
@@ -174,12 +169,12 @@ export abstract class CharacterController2D extends CharacterController implemen
             {
                 const { Origin, Axis } = match.Arena.config;
                 const { Position } = Origin.Value;
-                axisRotatedOrigin = CFrame.lookAt(Position, Position.add(Axis.Value));
+                this.axisRotatedOrigin = CFrame.lookAlong(Position, Axis.Value);
             }
         }
 
-        assert(axisRotatedOrigin, "no axis rotated origin");
-        const playerDirection = this.GetMoveDirection(axisRotatedOrigin);
+        assert(this.axisRotatedOrigin, "no axis rotated origin");
+        const playerDirection = this.GetMoveDirection(this.axisRotatedOrigin);
 
         const currentLastFrameNormal = this.lastFrameNormal;
         this.lastFrameNormal = playerDirection;
@@ -196,40 +191,58 @@ export abstract class CharacterController2D extends CharacterController implemen
             );
 
             const eqLeniency = 0.5;
-            const currentState = character.GetAttribute("State") as EntityState;
-
             if (playerDirection.Dot(bottomNormal) > eqLeniency)
             {
+                /* Players can hold Crouch to crouch at any position,
+                 * but auto-jumping is disallowed.
+                 */
                 const lastFrameDot = currentLastFrameNormal.Dot(bottomNormal);
-                if (playerHumanoid.FloorMaterial !== Enum.Material.Air)
+                const frameDot = playerDirection.Dot(bottomNormal);
+                // if (playerHumanoid.FloorMaterial !== Enum.Material.Air)
+                // {
+                if (frameDot >= eqLeniency)
                 {
-                    if (lastFrameDot <= eqLeniency)
+                    if (entity.IsNeutral() && entity.IsGrounded() && !entity.IsState(EntityState.Crouch))
                     {
-                        if (isStateNeutral(currentState))
-                            Functions.Crouch(EntityState.Crouch);
+                        this.Crouch(true);
+                        Functions.Crouch(EntityState.Crouch);
                     }
                 }
+                // }
 
                 return;
+            }
+            else if ((entity.attributes.State & EntityState.Crouch) > 1)
+            {
+                print("whjat the dog doin");
+                this.Crouch(false);
+                Functions.Crouch(EntityState.Idle);
             }
             else if (playerDirection.Dot(topNormal) > eqLeniency)
             {
                 const lastFrameDot = currentLastFrameNormal.Dot(topNormal);
                 if (lastFrameDot <= eqLeniency)
-
+                {
+                    this.Jump();
                     Functions.Jump();
+                }
 
             }
-            else if (currentState === EntityState.Crouch)
 
-                Functions.Crouch(EntityState.Idle);
+            if (entity)
 
-
-            if (playerHumanoid.FloorMaterial === Enum.Material.Air && playerHumanoid.GetAttribute("JumpDirection"))
-                playerHumanoid.Move(playerHumanoid.GetAttribute("JumpDirection") as Vector3);
-            else
-                playerHumanoid.Move(playerDirection);
+                if (playerHumanoid.FloorMaterial === Enum.Material.Air && playerHumanoid.GetAttribute("JumpDirection"))
+                    entity.ControllerManager.MovingDirection = playerHumanoid.GetAttribute("JumpDirection") as Vector3;
+                else
+                    entity.ControllerManager.MovingDirection = playerDirection;
         }
+    }
+
+    onTick()
+    {
+        /* TODO: remove if this causes problems, especially with broken rotation at a certain point. */
+        this.GetEntity()?.Face(this.axisRotatedOrigin.LookVector);
+
     }
 
     onStart(): void
@@ -259,14 +272,7 @@ export abstract class CharacterController2D extends CharacterController implemen
         const currentMatch = await Functions.GetCurrentMatch();
         if (currentMatch?.Arena)
         {
-            const components = Dependency<Components>();
-            print("why hello there!");
-
             this.character = character;
-            character.WaitForChild("Humanoid").WaitForChild("Animator");
-            // components.addComponent(character, Animator.Animator);
-            components.addComponent(character, StatefulComponent);
-
             this.SetAxis(currentMatch.Arena.config.Axis.Value);
             this.SetEnabled(true);
 
@@ -289,7 +295,7 @@ export abstract class CharacterController2D extends CharacterController implemen
         return false;
     }
 
-    SetAxisTowardsModel(towards: Model)
+    public SetAxisTowardsModel(towards: Model)
     {
         assert(this.character, "character is not defined");
         this.axis = towards
@@ -297,13 +303,13 @@ export abstract class CharacterController2D extends CharacterController implemen
             .Position.sub(this.character?.GetPivot().Position).Unit;
     }
 
-    SetAxis(axis: Enum.NormalId | Vector3)
+    public SetAxis(axis: Enum.NormalId | Vector3)
     {
         assert(this.character, "character is not defined");
         this.axis = typeIs(axis, "EnumItem") ? Vector3.FromNormalId(axis) : axis;
     }
 
-    SetEnabled(enabled: boolean)
+    public SetEnabled(enabled: boolean)
     {
         this.enabled = true;
         if (enabled)

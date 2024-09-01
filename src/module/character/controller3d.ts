@@ -1,8 +1,6 @@
-import { Controller, Dependency, OnInit, OnStart, OnTick } from "@flamework/core";
-import { Gamepad, GamepadButtons } from "controllers/gamepad.controller";
-import { Keyboard } from "controllers/keyboard.controller";
+import {  Dependency, OnInit, OnStart } from "@flamework/core";
+import {  GamepadButtons } from "controllers/gamepad.controller";
 import { MatchController } from "controllers/match.controller";
-import { Mouse } from "controllers/mouse.controller";
 import { CharacterController } from "module/character";
 import { InputMode, InputResult } from "@quarrelgame-framework/common";
 import { CombatController3D } from "../combat/combat3d";
