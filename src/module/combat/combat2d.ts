@@ -4,11 +4,12 @@ import { CharacterController } from "module/character";
 import { Functions } from "network";
 
 import { CharacterSelectController } from "controllers/characterselect.controller";
-import { NullifyYComponent, Motion, Input, MotionInput, InputMode, InputResult, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId } from "@quarrelgame-framework/common";
+import { NullifyYComponent, Motion, Input, MotionInput, InputMode, InputResult, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, validateMotion, stringifyMotionInput } from "@quarrelgame-framework/common";
 import { MatchController, OnMatchRespawn } from "controllers/match.controller";
 
 import { CombatController } from "module/combat";
 import { CharacterController2D } from "module/character/controller2d";
+import InputController, { KeyboardEvents } from "controllers/input.controller";
 import Client from "module/game/client";
 
 export interface MotionInputHandling
@@ -36,7 +37,7 @@ enum MotionInputPurgeMode
     TAIL
 }
 
-export default abstract class CombatController2D<T extends CharacterController2D> extends CombatController implements OnStart, OnRender, OnKeyboardInput, MotionInputHandling, OnMatchRespawn
+export default abstract class CombatController2D extends CombatController implements OnStart, OnRender, KeyboardEvents, MotionInputHandling, OnMatchRespawn
 {
     public static PurgeMode: MotionInputPurgeMode = MotionInputPurgeMode.TAIL;
 
@@ -49,13 +50,13 @@ export default abstract class CombatController2D<T extends CharacterController2D
     protected keybindMap: Map<Enum.KeyCode, Input> = new Map();
 
 
-    constructor(protected characterController: T, protected matchController: MatchController)
+    constructor(protected client: Client, protected characterController: CharacterController2D, protected matchController: MatchController, protected inputController: InputController)
     {
         super();
         this.normalMap = this.characterController.GetKeybinds();
     }
 
-    onKeyboardInput(buttonPressed: Enum.KeyCode, inputMode: InputMode): boolean | InputResult | (() => boolean | InputResult) 
+    onKeyPressed({KeyCode: buttonPressed, UserInputState: inputMode}: InputObject): boolean | InputResult | (() => boolean | InputResult) 
     {
         const hasCharacterController = this.characterController.GetKeybinds().has(buttonPressed);
         const hasCombatController = this.GetKeybinds().has(buttonPressed);
@@ -97,7 +98,7 @@ export default abstract class CombatController2D<T extends CharacterController2D
         if (hasCombatController)
         {
             const keyInput = this.GetKeybinds();
-            if (inputMode === InputMode.Press)
+            if (inputMode.Value === InputMode.Press)
             {
                 this.currentMotion.push(keyInput.get(buttonPressed)!);
                 this.SubmitMotionInput();
@@ -117,52 +118,15 @@ export default abstract class CombatController2D<T extends CharacterController2D
 
             return new Promise((_, rej) => rej(false));
 
-        const currentMotion = [ ...this.currentMotion ];
+        const matchingAttacks = validateMotion(this.currentMotion, foundCharacter);
         const decompiledAttacks = [...foundCharacter.Attacks]
-        const matchingAttacks = decompiledAttacks.filter(([motionInput]) => 
-        {
-            let motionSet: MotionInput;
-            if ( motionInput.includes(Motion.Neutral) ) 
-            {
-                const set = [ ... this.currentMotion ];
-                if (set[0] !== Motion.Neutral)
-
-                    set.unshift(Motion.Neutral); // make sure the motion starts with 5 if it doesn't already
-
-                motionSet = set.filter((e, k, a) => !(a[k - 1] === Motion.Neutral && e === Motion.Neutral)); // remove duplicates
-            }
-            else
-
-                motionSet = this.currentMotion.filter((e) => e !== Motion.Neutral); // filter all neutrals 
-
-            if (motionSet.size() < motionInput.size())
-
-                return;
-
-                 
-            if (motionSet.size() === 0)
-
-                return;
-
-            for (let i = motionInput.size() - 1; i >= 0; i--)
-
-                if (motionInput[i] !== motionSet[motionSet.size() - (motionInput.size() - i)])
-
-                    // print(`motion failed: ${motionInput[i]} !== ${motionSet[i]}`);
-                    return false;
-
-
-            // print(`motion passed: ${this.stringifyMotionInput(motionInput)} === ${this.stringifyMotionInput(motionSet)}`);
-            return true;
-        });
-                 
         if (matchingAttacks.size() === 0)
         {
             warn(`No attacks found for ${this.stringifyMotionInput(this.currentMotion)}. Attacks list: ${decompiledAttacks.map(([motion, skill]) => `\n${this.stringifyMotionInput(motion)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a, decompiledAttacks.size() === 0 ? "NONE" : "")}`)
         } else {
             if (matchingAttacks.size() === 1)
 
-                task.spawn(() => Functions.SubmitMotionInput([... currentMotion ]));
+                task.spawn(() => Functions.SubmitMotionInput([... this.currentMotion ]));
 
             warn(`Matching attacks for ${this.stringifyMotionInput(this.currentMotion)}: ${matchingAttacks.map(([motion, skill]) => `\n${this.stringifyMotionInput(motion)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a)}`)
         }
@@ -222,16 +186,14 @@ export default abstract class CombatController2D<T extends CharacterController2D
     {
         assert(this.characterController, "no character controller bound.");
         const keyboardDirectionMap = this.characterController.GetKeybinds();
-        const keyboard = Dependency<Keyboard>();
-
         let totalVector = Vector3.zero;
 
         keyboardDirectionMap.forEach((normal, code) =>
         {
-            if (keyboard.isKeyDown(code) || fromKeys?.includes(code))
+            if (this.inputController.IsKeyDown(code) || fromKeys?.includes(code))
             {
                 const { Top, Bottom, Back: Left, Front: Right } = Enum.NormalId;
-                const { character } = Dependency<Client>();
+                const { character } = this.client;
                 if (character)
                 {
                     const { LookVector } = character.GetPivot();
@@ -288,7 +250,7 @@ export default abstract class CombatController2D<T extends CharacterController2D
         
     public stringifyMotionInput(motionInput: MotionInput = this.currentMotion)
     {
-        return motionInput.size() > 0 ? motionInput.map(tostring).reduce((acc, v) => `${acc}, ${v}`) : ""
+        return stringifyMotionInput(motionInput);
     }
 
     onMotionInputChanged(motionInput: MotionInput)
