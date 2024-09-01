@@ -3,7 +3,6 @@ import { ContextActionService, Players } from "@rbxts/services";
 import { OnMatchRespawn } from "controllers/match.controller";
 import { MatchController } from "controllers/match.controller";
 import { Entity, GenerateRelativeVectorFromNormalId, InputMode, InputResult } from "@quarrelgame-framework/common";
-import { HumanoidController } from "./humanoid";
 import { Input } from "controllers/input.controller";
 import { Components } from "@flamework/components";
 import { Dependency } from "@flamework/core";
@@ -21,7 +20,6 @@ export abstract class CharacterController implements OnRespawn, OnMatchRespawn
 
     constructor(
         protected readonly matchController: MatchController,
-        protected readonly humanoidController: HumanoidController,
         protected readonly input: Input,
     )
     {}

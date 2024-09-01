@@ -9,8 +9,6 @@ export * from "controllers/match.controller";
 export * from "controllers/characterselect.controller";
 export * from "controllers/resourcecontroller.controller";
 
-export * from "module/character/humanoid";
-
 export * from "module/camera/camera2d";
 export * from "module/character/controller2d";
 export * from "module/combat/combat2d";

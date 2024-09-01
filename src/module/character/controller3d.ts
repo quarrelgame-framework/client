@@ -4,14 +4,13 @@ import { MatchController } from "controllers/match.controller";
 import { CharacterController } from "module/character";
 import { InputMode, InputResult } from "@quarrelgame-framework/common";
 import { CombatController3D } from "../combat/combat3d";
-import { HumanoidController } from "./humanoid";
 import InputController from "controllers/input.controller";
 
 export abstract class CharacterController3D extends CharacterController implements OnStart, OnInit
 {
-    constructor(protected readonly combatController: CombatController3D, protected readonly humanoidController: HumanoidController, protected readonly inputController: InputController)
+    constructor(protected readonly combatController: CombatController3D, protected readonly inputController: InputController)
     {
-        super(Dependency<MatchController>(), humanoidController, inputController);
+        super(Dependency<MatchController>(), inputController);
     }
 
     protected keyboardDirectionMap: Map<Enum.KeyCode, Enum.NormalId> = new Map([

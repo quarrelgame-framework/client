@@ -7,7 +7,6 @@ import { CharacterController } from "module/character";
 import { Functions } from "network";
 
 import { Players, Workspace } from "@rbxts/services";
-import { HumanoidController } from "module/character/humanoid";
 import {  EntityState,  NullifyYComponent, SessionType, GenerateRelativeVectorFromNormalId,  InputMode, InputResult } from "@quarrelgame-framework/common";
 import { Map as _Map } from "@quarrelgame-framework/common";
 import { MatchController, OnArenaChange } from "controllers/match.controller";
@@ -23,12 +22,11 @@ export abstract class CharacterController2D extends CharacterController implemen
 
     constructor(
         protected readonly client: Client,
-        protected readonly humanoidController: HumanoidController,
         protected readonly matchController: MatchController,
         protected readonly input: InputHandler,
     )
     {
-        super(matchController, humanoidController, input);
+        super(matchController, input);
     }
 
     private invisibleWallSets = new Set<Folder>();
