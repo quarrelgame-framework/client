@@ -47,29 +47,36 @@ export class MatchController implements OnStart, OnInit
         // should be an easy fix
         Events.MatchParticipantRespawned.connect((characterModel) =>
         {
-            print("ok wh");
-            this.matchRespawnTrackers.forEach(async (l) =>
+            this.updateMatchData().then(() =>
             {
-                print("whaur?");
-                l.onMatchRespawn(characterModel as never, Players.GetPlayerFromCharacter(characterModel));
-            });
+                this.matchRespawnTrackers.forEach(async (l) =>
+                {
+                    l.onMatchRespawn(characterModel as never, Players.GetPlayerFromCharacter(characterModel));
+                });
+            })
         });
 
         Events.ArenaChanged.connect((mapId, arenaId) =>
         {
-            this.RequestCurrentMatch().then((currentMatch) =>
-            {
-                if (currentMatch === undefined)
-                {
-                    this.matchData = undefined;
-                    throw "current match is undefined.";
-                }
-
-                this.matchData = currentMatch;
-
+            this.updateMatchData().then((matchData) => {
+                assert(this.matchData, "match data is not defined");
                 for (const listener of this.arenaChangedHandlers)
-                    task.spawn(() => listener.onArenaChanged(mapId, currentMatch.Arena as never));
-            });
+                    task.spawn(() => listener.onArenaChanged(mapId, matchData!.Arena as never));
+            })
+        });
+    }
+
+    protected async updateMatchData()
+    {
+        return Functions.GetCurrentMatch().then((currentMatch) =>
+        {
+            if (currentMatch === undefined)
+            {
+                this.matchData = undefined;
+                throw "current match is undefined.";
+            }
+
+            return this.matchData = currentMatch;
         });
     }
 
