@@ -1,6 +1,5 @@
 import { Dependency, Modding, OnRender, OnStart } from "@flamework/core";
 import { Keyboard, OnKeyboardInput } from "controllers/keyboard.controller";
-import { Client } from "controllers/client.controller";
 import { CharacterController } from "module/character";
 import { Functions } from "network";
 
@@ -10,6 +9,7 @@ import { MatchController, OnMatchRespawn } from "controllers/match.controller";
 
 import { CombatController } from "module/combat";
 import { CharacterController2D } from "module/character/controller2d";
+import Client from "module/game/client";
 
 export interface MotionInputHandling
 {

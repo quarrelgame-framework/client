@@ -1,6 +1,6 @@
 import { Controller, Modding, OnInit, OnStart } from "@flamework/core";
 import { ContextActionService, UserInputService } from "@rbxts/services";
-import { OnRespawn } from "./client.controller";
+import { OnRespawn } from "module/game/client";
 
 export interface MouseEvents
 {

@@ -1,4 +1,5 @@
 import { Modding, OnInit, OnStart } from "@flamework/core";
+import { Animator } from "@quarrelgame-framework/common";
 import { Players, StarterGui } from "@rbxts/services";
 
 export interface OnRespawn
@@ -45,7 +46,6 @@ export default class Client implements OnInit, OnRespawn
 
     onRespawn(character: Model)
     {
-        print("kekwkwkw");
         this.character = character;
     }
 

@@ -3,6 +3,7 @@ import { Controller, Dependency, OnPhysics, OnRender, OnStart, OnTick } from "@f
 
 import { Gamepad, GamepadButtons } from "controllers/gamepad.controller";
 import { Keyboard } from "controllers/keyboard.controller";
+import Client, { OnRespawn } from "module/game/client";
 import { OnMatchRespawn } from "controllers/match.controller";
 import { Mouse } from "controllers/mouse.controller";
 import { CharacterController } from "module/character";

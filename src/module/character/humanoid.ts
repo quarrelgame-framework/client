@@ -1,5 +1,5 @@
 import { OnStart } from "@flamework/core";
-import { Client } from "controllers/client.controller";
+import { Client } from "module/game/client";
 import { OnMatchRespawn } from "controllers/match.controller";
 
 import { Managed, ICharacter } from "@quarrelgame-framework/types";

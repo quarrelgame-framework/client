@@ -1,7 +1,6 @@
 import type Flamework from "@flamework/core";
 import { Modding, type Modding as FWModding } from "@flamework/core";
 
-import { Client } from "controllers/client.controller";
 import { CharacterSelectController } from "controllers/characterselect.controller"
 import { Gamepad } from "controllers/gamepad.controller"
 import { Input } from "controllers/input.controller"
@@ -33,6 +32,7 @@ export * from "module/camera";
 export * from "module/character";
 export * from "module/combat";
 
+export * from "module/game/client";
 export * from "lib/player";
 
 export * from "module/extra/cursor";
