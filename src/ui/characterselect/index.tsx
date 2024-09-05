@@ -1,11 +1,12 @@
 import { Dependency } from "@flamework/core";
 import Roact, { useState } from "@rbxts/roact";
-import { CharacterSelectController } from "controllers/characterselect.controller";
 import CharacterData from "./characterdata";
 import CharacterItem from "./characteritem";
 import CharacterPortrait3D from "./characterportrait";
 
+import { CharacterSelectController } from "controllers/characterselect.controller";
 import { Character, EntityState } from "@quarrelgame-framework/common";
+import CharacterManager from "@quarrelgame-framework/common/out/singletons/character";
 
 export interface CharacterSelectProps
 {
@@ -17,10 +18,10 @@ export const ChainsImage = "rbxassetid://137751994";
 
 export const DotsImage = "rbxassetid://4376776276";
 
-export default function CharacterSelect(characterSelectProps: CharacterSelectProps = { Characters: Dependency<CharacterSelectController>().characters })
+export default function CharacterSelect(characterSelectProps: CharacterSelectProps = { Characters: Dependency<CharacterManager>().GetCharacters() })
 {
-                            /* don't know why this implementation is here but it's here for a reason so i'm keeping it lest i break something and cry */
-    const { Characters, OnSelect } = characterSelectProps ?? { Characters: Dependency<CharacterSelectController>().characters };
+    /* don't know why this implementation is here but it's here for a reason so i'm keeping it lest i break something and cry */
+    const { Characters, OnSelect } = characterSelectProps ?? { Characters: Dependency<CharacterManager>().GetCharacters() };
     const [selectedCharacter, setSelectedCharacter] = useState<Character.Character | undefined>();
 
     const chains = (

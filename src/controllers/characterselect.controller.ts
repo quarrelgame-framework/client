@@ -5,8 +5,7 @@ import CharacterSelect from "ui/characterselect";
 
 import { Controller, Modding, OnInit, OnStart } from "@flamework/core";
 import { Players } from "@rbxts/services";
-import { Functions } from "network";
-import { Animator, Character } from "@quarrelgame-framework/common";
+import { CharacterManager, Character } from "@quarrelgame-framework/common";
 
 export interface OnCharacterSelected {
     onCharacterSelected(charcter: Character.Character): void;
@@ -30,9 +29,7 @@ export default class CharacterSelectController implements OnStart, OnInit {
 
     private readonly characterSelectedListeners = new Set<OnCharacterSelected>();
 
-    public readonly characters = new Map<string, Character.Character>();
-
-    constructor() {
+    constructor(protected CharacterManager: CharacterManager) {
         this.characterSelectScreenGui = Make("ScreenGui", {
             Parent: Players.LocalPlayer.WaitForChild("PlayerGui"),
             IgnoreGuiInset: true,
@@ -52,14 +49,6 @@ export default class CharacterSelectController implements OnStart, OnInit {
             this.OpenCharacterSelect();
     }
 
-    public SetCharacters(characters: ReadonlyMap<string, Character.Character>) {
-        this.characters.clear();
-        for (const [charname, char] of characters)
-            this.characters.set(charname, char);
-
-        Animator.RegisterCharacters(characters);
-    }
-
     public BindCharacterSelectInstance(screengui: ScreenGui) {
         this.characterSelectScreenGui = screengui;
     }
@@ -68,7 +57,7 @@ export default class CharacterSelectController implements OnStart, OnInit {
         if (!this.currentCharacterSelect) {
             this.currentCharacterSelect = Roact.mount(
                 Roact.createElement(CharacterSelect, {
-                    Characters: this.characters,
+                    Characters: this.CharacterManager.GetCharacters(),
                     OnSelect: (selectedCharacter: Character.Character) => {
                         if (
                             this.currentlySelectedCharacter &&
@@ -90,8 +79,6 @@ export default class CharacterSelectController implements OnStart, OnInit {
     public CloseCharacterSelect() {
         if (this.currentCharacterSelect !== undefined)
             Roact.unmount(this.currentCharacterSelect);
-
-        print("closed character select");
     }
 }
 

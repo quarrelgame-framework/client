@@ -2,8 +2,7 @@ import { Players } from "@rbxts/services";
 import { OnMatchRespawn } from "controllers/match.controller";
 
 import { Dependency } from "@flamework/core";
-import { CharacterSelectController } from "controllers/characterselect.controller";
-import { Character, Input, InputMode, InputResult } from "@quarrelgame-framework/common";
+import { Character, CharacterManager, Input, InputMode, InputResult } from "@quarrelgame-framework/common";
 
 import Object from "@rbxts/object-utils";
 
@@ -32,8 +31,7 @@ export abstract class CombatController implements OnMatchRespawn
 
         if (Players.LocalPlayer.GetAttribute("MatchId"))
         {
-            const Characters = Dependency<CharacterSelectController>().characters;
-            this.selectedCharacter = Characters.get(Players.LocalPlayer.GetAttribute("SelectedCharacter") as string);
+            this.selectedCharacter = Dependency<CharacterManager>().GetCharacter(Players.LocalPlayer.GetAttribute("SelectedCharacter") as string);
             assert(this.selectedCharacter, `no selected character found (${Players.LocalPlayer.GetAttribute("SelectedCharacter")})`);
         }
         else

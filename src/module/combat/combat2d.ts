@@ -110,9 +110,8 @@ export default abstract class CombatController2D extends CombatController implem
 
     public async SubmitMotionInput(): Promise<boolean>
     {
-        const Characters = Dependency<CharacterSelectController>().characters;
         const characterId = this.characterController.GetCharacter()?.GetAttribute("CharacterId") as string;
-        const foundCharacter = Characters.get(characterId);
+        const foundCharacter = Dependency<CharacterManager>().GetCharacter(characterId);
 
         if (!foundCharacter)
 
