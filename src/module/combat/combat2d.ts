@@ -4,7 +4,7 @@ import { CharacterController } from "module/character";
 import { Functions } from "network";
 
 import { CharacterSelectController } from "controllers/characterselect.controller";
-import { NullifyYComponent, Motion, Input, MotionInput, InputMode, InputResult, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, validateMotion, stringifyMotionInput } from "@quarrelgame-framework/common";
+import { NullifyYComponent, Motion, Input, MotionInput, InputMode, InputResult, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, validateMotion, stringifyMotionInput, validateGroundedState, CharacterManager } from "@quarrelgame-framework/common";
 import { MatchController, OnMatchRespawn } from "controllers/match.controller";
 
 import { CombatController } from "module/combat";
@@ -112,22 +112,36 @@ export default abstract class CombatController2D extends CombatController implem
     {
         const characterId = this.characterController.GetCharacter()?.GetAttribute("CharacterId") as string;
         const foundCharacter = Dependency<CharacterManager>().GetCharacter(characterId);
+        const currentEntity = this.characterController.GetEntity();
 
         if (!foundCharacter)
 
             return new Promise((_, rej) => rej(false));
 
-        const matchingAttacks = validateMotion(this.currentMotion, foundCharacter);
+        if (!currentEntity)
+
+            return new Promise((_, rej) => rej(false));
+
+        const matchingAttacks = validateMotion(this.currentMotion, foundCharacter)
+            .map((e) => typeIs(e[1], "function") ? e[1](currentEntity) : e[1])
+            .filter((skill) => validateGroundedState(skill, currentEntity))
+
         const decompiledAttacks = [...foundCharacter.Attacks]
         if (matchingAttacks.size() === 0)
         {
             warn(`No attacks found for ${this.stringifyMotionInput(this.currentMotion)}. Attacks list: ${decompiledAttacks.map(([motion, skill]) => `\n${this.stringifyMotionInput(motion)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a, decompiledAttacks.size() === 0 ? "NONE" : "")}`)
         } else {
-            if (matchingAttacks.size() === 1)
+            if (matchingAttacks.size() >= 1)
+            {
+                /* execute motion input locally as well, ideally rollback will fix it */
+                if (currentEntity)
+                {
+                    task.spawn(() => matchingAttacks[0].FrameData.Execute(currentEntity, matchingAttacks[0]));
+                    // task.spawn(() => Functions.SubmitMotionInput([... this.currentMotion ]));
+                }
+            }
 
-                task.spawn(() => Functions.SubmitMotionInput([... this.currentMotion ]));
-
-            warn(`Matching attacks for ${this.stringifyMotionInput(this.currentMotion)}: ${matchingAttacks.map(([motion, skill]) => `\n${this.stringifyMotionInput(motion)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a)}`)
+            // warn(`Matching attacks for ${this.stringifyMotionInput(this.currentMotion)}: ${matchingAttacks.map(([motion, skill]) => `\n${this.stringifyMotionInput(motion)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a)}`)
         }
 
         this.currentMotion.clear();
