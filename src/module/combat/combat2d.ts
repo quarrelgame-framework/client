@@ -201,7 +201,7 @@ export default abstract class CombatController2D extends CombatController implem
             if (this.inputController.IsKeyDown(code) || fromKeys?.includes(code))
             {
                 const { Top, Bottom, Back: Left, Front: Right } = Enum.NormalId;
-                const { character } = this.client;
+                const { character } = this;
                 if (character)
                 {
                     const { LookVector } = character.GetPivot();
