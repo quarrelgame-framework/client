@@ -309,10 +309,6 @@ export abstract class CharacterController2D extends CharacterController implemen
 
     public SetEnabled(enabled: boolean)
     {
-        this.enabled = true;
-        if (enabled)
-            this.DisableRobloxMovement();
-        else
-            this.EnableRobloxMovement();
+        this.enabled = enabled;
     }
 }

@@ -1,5 +1,4 @@
 import { Dependency, Modding, OnRender, OnStart } from "@flamework/core";
-import { Keyboard, OnKeyboardInput } from "controllers/keyboard.controller";
 import { CharacterController } from "module/character";
 import { Functions } from "network";
 
@@ -49,51 +48,46 @@ export default abstract class CombatController2D extends CombatController implem
 
     protected keybindMap: Map<Enum.KeyCode, Input> = new Map();
 
-
     constructor(protected client: Client, protected characterController: CharacterController2D, protected matchController: MatchController, protected inputController: InputController)
     {
         super();
         this.normalMap = this.characterController.GetKeybinds();
     }
 
-    onKeyPressed({KeyCode: buttonPressed, UserInputState: inputMode}: InputObject): boolean | InputResult | (() => boolean | InputResult) 
+    onKeyReleased({KeyCode: buttonPressed}: InputObject): void 
+    {
+        const hasCharacterController = this.characterController.GetKeybinds().has(buttonPressed);
+        const hasCombatController = this.GetKeybinds().has(buttonPressed);
+        const arena = this.matchController.GetCurrentArena();
+
+        if (!arena)
+
+            return;
+
+        if (hasCharacterController || (hasCombatController && this.currentMotion.size() === 0)) 
+
+            this.PushMotion(Motion[ConvertMoveDirectionToMotion(this.GetMotionDirection(arena.config.Origin.Value))[0]]);
+    }
+
+    onKeyPressed({KeyCode: buttonPressed, UserInputState: inputMode}: InputObject): void
     {
         const hasCharacterController = this.characterController.GetKeybinds().has(buttonPressed);
         const hasCombatController = this.GetKeybinds().has(buttonPressed);
         if (buttonPressed === Enum.KeyCode.Backspace || buttonPressed === Enum.KeyCode.K)
-        {
-            this.currentMotion.clear();
-            return InputResult.Success;
-        } 
 
-        // if (this.currentMotion.size() <= 0)
-        // {
-         // }
+            this.currentMotion.clear();
 
         /* TODO: support charge inputs */
 
         const arena = this.matchController.GetCurrentArena();
         if (!arena)
 
-            return InputResult.Fail;
+            return;
 
+        // allow refilling input in-case motion was executed (e.g. DP into crouch)
+        if (hasCharacterController || (hasCombatController && this.currentMotion.size() === 0)) 
 
-        if (hasCharacterController || (hasCombatController && this.currentMotion.size() === 0)) // allow refilling input in-case motion was executed (e.g. DP into crouch)
-        {
-            // if (inputMode !== InputMode.Release && this.currentMotion.size() !== 0)
-            // {
-            //     return InputResult.Fail;
-            // }
-
-            const motionNormal = this.GetMotionDirection(arena.config.Origin.Value);// this.characterController.GetKeybinds().get(buttonPressed);
-            const outMotion = Motion[ConvertMoveDirectionToMotion(motionNormal)[0]];
-            this.currentMotion.push(outMotion);
-
-            const currentMotion = [ ... this.currentMotion ];
-            for (const listener of this.motionInputEventHandlers)
-
-                task.spawn(() => listener.onMotionInputChanged?.(currentMotion));
-        }
+            this.PushMotion(Motion[ConvertMoveDirectionToMotion(this.GetMotionDirection(arena.config.Origin.Value))[0]]);
 
         if (hasCombatController)
         {
@@ -105,7 +99,17 @@ export default abstract class CombatController2D extends CombatController implem
             }
         }
 
-        return InputResult.Success;
+        return;
+    }
+
+    public async PushMotion(motion: Motion)
+    {
+        this.currentMotion.push(motion);
+
+        const currentMotion = [ ... this.currentMotion ];
+        for (const listener of this.motionInputEventHandlers)
+
+            task.spawn(() => listener.onMotionInputChanged?.(currentMotion));
     }
 
     public async SubmitMotionInput(): Promise<boolean>
@@ -122,26 +126,17 @@ export default abstract class CombatController2D extends CombatController implem
 
             return new Promise((_, rej) => rej(false));
 
-        const matchingAttacks = validateMotion(this.currentMotion, foundCharacter)
+        const matchingSkills = validateMotion(this.currentMotion, foundCharacter)
             .map((e) => typeIs(e[1], "function") ? e[1](currentEntity) : e[1])
-            .filter((skill) => validateGroundedState(skill, currentEntity))
-
-        const decompiledAttacks = [...foundCharacter.Attacks]
-        if (matchingAttacks.size() === 0)
+        const decompiledSkills = [...foundCharacter.Skills]
+        if (matchingSkills.size() === 0)
         {
-            warn(`No attacks found for ${this.stringifyMotionInput(this.currentMotion)}. Attacks list: ${decompiledAttacks.map(([motion, skill]) => `\n${this.stringifyMotionInput(motion)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a, decompiledAttacks.size() === 0 ? "NONE" : "")}`)
+            warn(`No skills found for ${this.stringifyMotionInput(this.currentMotion)}. Skills list: ${decompiledSkills.map(([motion, skill]) => `\n${this.stringifyMotionInput(motion)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a, decompiledSkills.size() === 0 ? "NONE" : "")}`)
         } else {
-            if (matchingAttacks.size() >= 1)
-            {
-                /* execute motion input locally as well, ideally rollback will fix it */
-                if (currentEntity)
-                {
-                    task.spawn(() => matchingAttacks[0].FrameData.Execute(currentEntity, matchingAttacks[0]));
-                    // task.spawn(() => Functions.SubmitMotionInput([... this.currentMotion ]));
-                }
-            }
+            if (matchingSkills.size() >= 1)
 
-            // warn(`Matching attacks for ${this.stringifyMotionInput(this.currentMotion)}: ${matchingAttacks.map(([motion, skill]) => `\n${this.stringifyMotionInput(motion)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a)}`)
+                task.spawn(() => currentEntity?.ExecuteSkill(matchingSkills.map((e) => e.Id)).then((hitData) => hitData))
+
         }
 
         this.currentMotion.clear();

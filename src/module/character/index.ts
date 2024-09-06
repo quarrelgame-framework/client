@@ -63,52 +63,9 @@ export abstract class CharacterController implements OnRespawn, OnMatchRespawn
         return totalVector.Magnitude > 0 ? totalVector.Unit : totalVector;
     }
 
-    private theseMovementActions?: BoundActionInfo[];
-    public DisableRobloxMovement()
-    {
-        //FIXME: 
-        //what the hell is going on over here??
-        this.theseMovementActions = [
-            ...ContextActionService.GetAllBoundActionInfo(),
-        ]
-            .filter(([ k, n ]) => !!k.match("move(.*)Action")[0])
-            .map(([ k, n ]) => n);
-        const actionPriority = this.theseMovementActions
-            .map((n) => n.priorityLevel ?? Enum.ContextActionPriority.High)
-            .reduce((a, b) => math.max(a, b));
-        assert(this.theseMovementActions, "movement actions not found");
-        ContextActionService.BindActionAtPriority(
-            "NullifyMovement",
-            (id, state, { KeyCode }) =>
-            {
-                return Enum.ContextActionResult.Sink;
-            },
-            false,
-            actionPriority + 1,
-            ...this.theseMovementActions.reduce(
-                (a, b) => [ ...a, ...b.inputTypes ] as never,
-                [],
-            ),
-        );
-    }
-
     public GetKeybinds()
     {
         return new ReadonlyMap([ ...this.keyboardDirectionMap ]);
-    }
-
-    public EnableRobloxMovement()
-    {
-        ContextActionService.UnbindAction("NullifyMovement");
-        delete this.theseMovementActions;
-    }
-
-    public ToggleRobloxMovement()
-    {
-        if (this.theseMovementActions)
-            this.EnableRobloxMovement();
-        else
-            this.DisableRobloxMovement();
     }
 
     public GetCharacter(): Model | undefined
@@ -139,14 +96,11 @@ export abstract class CharacterController implements OnRespawn, OnMatchRespawn
     {
         print("on respawnded!!");
         this.character = character;
-
-        if (this.theseMovementActions)
-            this.EnableRobloxMovement();
     }
 
     protected enabled = false;
 
-    SetEnabled(enabled: boolean, target: Model): void;
+    SetEnabled(enabled: boolean, target?: Model): void;
     SetEnabled(enabled = true)
     {
         this.enabled = enabled;

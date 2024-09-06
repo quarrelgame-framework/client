@@ -14,6 +14,7 @@ export interface KeyboardEvents
 {
     onKeyPressed?(inputObject: InputObject): void;
     onKeyReleased?(inputObject: InputObject): void;
+    onKeyChanged?(inputObject: InputObject): void;
 }
 
 @Controller({})
@@ -146,6 +147,14 @@ export default class Input implements OnStart, OnInit, OnRespawn
                 for (const listener of this.KeyboardEventListeners)
 
                     task.spawn(() => listener.onKeyReleased?.(inputObject))
+
+                break;
+
+            case Enum.UserInputState.Change:
+
+                for (const listener of this.KeyboardEventListeners)
+
+                    task.spawn(() => listener.onKeyChanged?.(inputObject))
 
             break;
         }
