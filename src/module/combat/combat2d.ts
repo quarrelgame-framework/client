@@ -3,7 +3,7 @@ import { CharacterController } from "module/character";
 import { Functions } from "network";
 
 import { CharacterSelectController } from "controllers/characterselect.controller";
-import { NullifyYComponent, Motion, Input, MotionInput, InputMode, InputResult, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, validateMotion, stringifyMotionInput, validateGroundedState, CharacterManager } from "@quarrelgame-framework/common";
+import { NullifyYComponent, Motion, Input, MotionInput, InputMode, InputResult, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, validateMotion, stringifyMotionInput, validateGroundedState, CharacterManager, SkillManager, Skill, SkillLike, EntityState } from "@quarrelgame-framework/common";
 import { MatchController, OnMatchRespawn } from "controllers/match.controller";
 
 import { CombatController } from "module/combat";
@@ -120,7 +120,7 @@ export default abstract class CombatController2D extends CombatController implem
 
         if (!foundCharacter)
 
-            return new Promise((_, rej) => rej(false));
+            return new Promise((_, rej) => rej(false))
 
         if (!currentEntity)
 
@@ -128,16 +128,36 @@ export default abstract class CombatController2D extends CombatController implem
 
         const matchingSkills = validateMotion(this.currentMotion, foundCharacter)
             .map((e) => typeIs(e[1], "function") ? e[1](currentEntity) : e[1])
+
+        const lastSkill = Dependency<SkillManager>().GetSkill(currentEntity.attributes.PreviousSkill ?? tostring({}));
         const decompiledSkills = [...foundCharacter.Skills]
-        if (matchingSkills.size() === 0)
+        const generateSkillWarning = (skills: [MotionInput, SkillLike][]) => 
+            warn(`No skills found for ${this.stringifyMotionInput(this.currentMotion)}. Skills list: ${skills.map(([motionInput, skill]) => `\n${this.stringifyMotionInput(motionInput)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a, skills.size() === 0 ? "NONE" : "")}`)
+
+        if (currentEntity.IsNegative())
         {
-            warn(`No skills found for ${this.stringifyMotionInput(this.currentMotion)}. Skills list: ${decompiledSkills.map(([motion, skill]) => `\n${this.stringifyMotionInput(motion)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a, decompiledSkills.size() === 0 ? "NONE" : "")}`)
-        } else {
-            if (matchingSkills.size() >= 1)
+            matchingSkills.clear()
+            const rekkaMap =  lastSkill?.Rekkas ?? [];
+            const gatlingMap =  lastSkill?.Gatlings ?? [];
+            const skillMap = new Map([...rekkaMap, ...gatlingMap]);
 
-                task.spawn(() => currentEntity?.ExecuteSkill(matchingSkills.map((e) => e.Id)).then((hitData) => hitData))
+            const matchingNegativeSkills = validateMotion(this.currentMotion, {Skills: skillMap});
+            const inner = matchingNegativeSkills.map((e) => typeIs(e[1], "function") ? e[1](currentEntity) : e[1]);
+            for (const item of inner)
 
-        }
+                matchingSkills.push(item);
+
+            if (matchingSkills.size() === 0)
+
+                generateSkillWarning([...gatlingMap])
+
+        } else if (matchingSkills.size() === 0)
+
+            generateSkillWarning(decompiledSkills);
+
+        if (matchingSkills.size() >= 1)
+
+            task.spawn(() => currentEntity?.ExecuteSkill(matchingSkills.map((e) => e.Id)).then((hitData) => hitData))
 
         this.currentMotion.clear();
         return true;
@@ -263,7 +283,6 @@ export default abstract class CombatController2D extends CombatController implem
 
     onMotionInputChanged(motionInput: MotionInput)
     {
-        print(`motion input changed: [${this.stringifyMotionInput(motionInput)}]`)
     }
 }
 
