@@ -44,7 +44,7 @@ export abstract class CharacterController implements OnRespawn, OnMatchRespawn
         }
     }
 
-    public GetMoveDirection(relativeTo: CFrame)
+    public GetMoveDirection(relativeTo?: CFrame)
     {
         let totalVector = Vector3.zero;
         this.keyboardDirectionMap.forEach((normal, code) =>
