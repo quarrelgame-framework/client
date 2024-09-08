@@ -95,6 +95,10 @@ export default abstract class CombatController2D extends CombatController implem
             if (inputMode.Value === InputMode.Press)
             {
                 this.currentMotion.push(keyInput.get(buttonPressed)!);
+                for (const listener of this.motionInputEventHandlers)
+
+                    task.spawn(() => listener.onMotionInputChanged?.(this.currentMotion));
+
                 this.SubmitMotionInput();
             }
         }
