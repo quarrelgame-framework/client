@@ -1,7 +1,6 @@
 import {  OnRender, OnStart, OnTick } from "@flamework/core";
 
 import Client, { OnRespawn } from "module/game/client";
-import {  GamepadButtons } from "controllers/gamepad.controller";
 import { OnMatchRespawn } from "controllers/match.controller";
 import { CharacterController } from "module/character";
 import { Functions } from "network";
@@ -285,13 +284,6 @@ export abstract class CharacterController2D extends CharacterController implemen
         [ Enum.KeyCode.D, Enum.NormalId.Front ],
     ] as [Enum.KeyCode, Enum.NormalId][]);
 
-    onGamepadInput(
-        buttonPressed: GamepadButtons,
-        inputMode: InputMode,
-    ): boolean | InputResult | (() => boolean | InputResult)
-    {
-        return false;
-    }
 
     public SetAxisTowardsModel(towards: Model)
     {

@@ -3,7 +3,6 @@ import { Modding, type Modding as FWModding } from "@flamework/core";
 
 export * from "controllers/input.controller";
 export * from "controllers/mouse.controller";
-export * from "controllers/keyboard.controller";
 
 export * from "controllers/match.controller";
 export * from "controllers/characterselect.controller";
