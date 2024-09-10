@@ -132,8 +132,9 @@ export default abstract class CombatController2D extends CombatController implem
 
         const lastSkill = Dependency<SkillManager>().GetSkill(currentEntity.attributes.PreviousSkill ?? tostring({}));
         const decompiledSkills = [...foundCharacter.Skills]
+        const noop: Callback = () => '';
         const generateSkillWarning = (skills: [MotionInput, SkillLike][]) => 
-            warn(`No skills found for ${this.stringifyMotionInput(this.currentMotion)}. Skills list: ${skills.map(([motionInput, skill]) => `\n${this.stringifyMotionInput(motionInput)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a, skills.size() === 0 ? "NONE" : "")}`)
+            noop(`No skills found for ${this.stringifyMotionInput(this.currentMotion)}. Skills list: ${skills.map(([motionInput, skill]) => `\n${this.stringifyMotionInput(motionInput)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a, skills.size() === 0 ? "NONE" : "")}`)
 
         if (currentEntity.IsNegative())
         {
