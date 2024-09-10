@@ -5,7 +5,6 @@ export * from "controllers/input.controller";
 export * from "controllers/mouse.controller";
 
 export * from "controllers/match.controller";
-export * from "controllers/characterselect.controller";
 export * from "controllers/resourcecontroller.controller";
 
 export * from "module/camera/camera2d";
@@ -25,6 +24,5 @@ export * from "module/game/client";
 export * from "lib/player";
 
 export * from "module/extra/cursor";
-export * from "module/extra/hud";
 
 export * from "network";

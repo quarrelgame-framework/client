@@ -1,12 +1,11 @@
 import { Players } from "@rbxts/services";
 import { CombatController } from "module/combat";
-import { HudController } from "module/extra/hud";
 import { Input } from "@quarrelgame-framework/common";
 import { CameraController3D } from "module/camera/camera3d";
 
 export abstract class CombatController3D extends CombatController
     {
-        constructor(private readonly hudController: HudController, private readonly cameraController3D: CameraController3D)
+        constructor(private readonly cameraController3D: CameraController3D)
         {
             super();
         }
@@ -33,8 +32,6 @@ export abstract class CombatController3D extends CombatController
 
                 if (this.lockOnTarget)
                 {
-                    this.hudController.SetLockOnTarget(target);
-                    this.hudController.SetLockOnEffectEnabled(doFX);
                     this.cameraController3D.SetLockOnTarget(this.lockOnTarget);
 
                     this.lockOnTracker = primaryPart.Destroying.Once(() =>
@@ -48,8 +45,6 @@ export abstract class CombatController3D extends CombatController
         }
 
         this.cameraController3D.SetLockOnTarget(undefined);
-        this.hudController.SetLockOnTarget(undefined);
-        this.hudController.SetLockOnEffectEnabled(false);
     }
 
     public Disable(): void
@@ -57,7 +52,5 @@ export abstract class CombatController3D extends CombatController
         super.Disable();
 
         this.cameraController3D.SetLockOnTarget(undefined);
-        this.hudController.SetLockOnTarget(undefined);
-        this.hudController.SetLockOnEffectEnabled(false);
     }
 }
