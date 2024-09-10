@@ -20,7 +20,6 @@ export interface OnMatchRespawn
 {
     onMatchRespawn(character: Managed<ICharacter>, player?: Player): void;
 }
-print("i was required nerd");
 
 /**
  * The controller responsible for
@@ -37,11 +36,10 @@ export class MatchController implements OnStart, OnInit
     private matchRespawnTrackers: Set<OnMatchRespawn> = new Set();
 
     constructor()
-    {print("i was constructed nerd")}
+    {}
 
     onStart()
     {
-        print("i was started nerd")
         // FIXME: currently there is a massive bug where onMatchRespawn functions
         // made for the local player runs because of other participants respawning.
         // should be an easy fix

@@ -103,19 +103,19 @@ export abstract class CharacterController2D extends CharacterController implemen
             entity = this.GetEntity();
 
         if (!enabled)
-            throw "not enabled"
+            return;
 
         if (!character)
-            throw "no character";
+            return;
 
         if (!match)
-            throw "no match data";
+            return;
 
         if (!axis)
-            throw "no axis";
+            return;
 
         if (!entity)
-            throw "no entity";
+            return;
 
         const { X, Z } = axis;
         if (this.alignPos?.Attachment0)
@@ -153,11 +153,9 @@ export abstract class CharacterController2D extends CharacterController implemen
                         NullifyYComponent(targetPlayer.Character.GetPivot()).Position,
                     );
 
-                    print("playing multiplayer");
                     break;
                 }
 
-                print("playing multiplayer with a lot of people");
 
                 /* falls through */
             }
@@ -211,7 +209,6 @@ export abstract class CharacterController2D extends CharacterController implemen
             }
             else if ((entity.attributes.State & EntityState.Crouch) > 1)
             {
-                print("whjat the dog doin");
                 this.Crouch(false);
                 Functions.Crouch(EntityState.Idle);
             }
@@ -228,10 +225,7 @@ export abstract class CharacterController2D extends CharacterController implemen
 
             if (entity)
 
-                if (playerHumanoid.FloorMaterial === Enum.Material.Air && playerHumanoid.GetAttribute("JumpDirection"))
-                    entity.ControllerManager.MovingDirection = playerHumanoid.GetAttribute("JumpDirection") as Vector3;
-                else
-                    entity.ControllerManager.MovingDirection = playerDirection;
+                entity.ControllerManager.MovingDirection = playerDirection;
         }
     }
 
@@ -265,7 +259,6 @@ export abstract class CharacterController2D extends CharacterController implemen
         });
 
         // TODO: fix bug that prevents this part in the controller from running
-        print("hgweh???");
         const currentMatch = await Functions.GetCurrentMatch();
         if (currentMatch?.Arena)
         {

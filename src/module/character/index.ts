@@ -31,12 +31,10 @@ export abstract class CharacterController implements OnRespawn, OnMatchRespawn
         const components = Dependency<Components>()
         if (character.GetAttribute("State")) 
         {
-            print(character.PrimaryPart, character.GetDescendants());
             if (!character.PrimaryPart)
 
                 Promise.fromEvent(character.GetPropertyChangedSignal("PrimaryPart")).then(() => 
                 {
-                    print("primarypart found");
                     components.addComponent<Entity>(character);
                 });
 
@@ -94,7 +92,6 @@ export abstract class CharacterController implements OnRespawn, OnMatchRespawn
 
     onMatchRespawn(character: Model): void
     {
-        print("on respawnded!!");
         this.character = character;
     }
 

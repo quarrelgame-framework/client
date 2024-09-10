@@ -227,7 +227,7 @@ export abstract class CameraController3D extends CameraController implements OnS
 
                 if (isVisible)
                 {
-                    print("Camera center is visible on the screen.");
+                    // print("Camera center is visible on the screen.");
                     Promise.fromEvent(
                         this.cursor.InterpolatePosition(undefined, [
                             viewportCenter.X,
@@ -245,12 +245,12 @@ export abstract class CameraController3D extends CameraController implements OnS
                         })
                         .then(() =>
                         {
-                            print("Main movement interpolation complete.");
+                            // print("Main movement interpolation complete.");
                         });
                 }
                 else
                 {
-                    print("Camera center is not visible on the screen.");
+                    // print("Camera center is not visible on the screen.");
                     Promise.fromEvent(
                         this.cursor.InterpolateTransparency(undefined, 1).Completed,
                     ).then(() =>
@@ -261,7 +261,7 @@ export abstract class CameraController3D extends CameraController implements OnS
                             this.cursor.InterpolateTransparency(undefined, 0).Completed,
                         ).then(() =>
                         {
-                            print("Fallback transparency interpolation complete.");
+                            // print("Fallback transparency interpolation complete.");
                         });
                     });
                 }
@@ -293,7 +293,7 @@ export abstract class CameraController3D extends CameraController implements OnS
             .WaitForChild("BoundKeys") as StringValue;
 
         BoundKeys.Value = "";
-        print("Camera Controller initiated.");
+        // print("Camera Controller initiated.");
     }
 
     on3DCameraEnabled(): void
@@ -329,7 +329,7 @@ export abstract class CameraController3D extends CameraController implements OnS
 
             if (stateController)
             {
-                print("state controller found!");
+                // print("state controller found!");
                 this.entityStateController = stateController;
                 this.entityStateController.onAttributeChanged(
                     "State",

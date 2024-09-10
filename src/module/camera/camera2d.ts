@@ -52,7 +52,6 @@ export abstract class CameraController2D extends CameraController implements OnI
                 const alreadyChecked = google.get(participant)?.has(otherParticipant);
                 if (alreadyChecked)
                 {
-                    print(`already checked: ${participant.Name} -> ${otherParticipant.Name}`);
                     continue;
                 }
                 else
@@ -75,7 +74,6 @@ export abstract class CameraController2D extends CameraController implements OnI
     public AddParticipants(...participants: Array<Model>)
     {
         participants.forEach((participant) => (this.allParticipants.includes(participant) ? undefined : this.allParticipants.push(participant)));
-        print("new participants:", this.allParticipants);
     }
 
     public SetParticipants(...participants: Array<Model>)
