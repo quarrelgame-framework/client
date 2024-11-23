@@ -204,8 +204,6 @@ export abstract class CharacterController2D extends CharacterController implemen
                     }
                 }
                 // }
-
-                return;
             }
             else if ((entity.attributes.State & EntityState.Crouch) > 1)
             {
