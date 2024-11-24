@@ -1,6 +1,6 @@
 import { Dependency, Modding, OnRender, OnStart } from "@flamework/core";
 
-import { NullifyYComponent, Motion, Input, MotionInput, InputMode, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, validateMotion, stringifyMotionInput, CharacterManager, SkillManager, SkillLike } from "@quarrelgame-framework/common";
+import { NullifyYComponent, Motion, Input, HeldInputDescriptor, MotionInput, InputMode, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, validateMotion, stringifyMotionInput, CharacterManager, SkillManager, SkillLike } from "@quarrelgame-framework/common";
 import { MatchController, OnMatchRespawn } from "controllers/match.controller";
 
 import { CombatController } from "module/combat";
@@ -37,7 +37,7 @@ export default abstract class CombatController2D extends CombatController implem
 {
     public static PurgeMode: MotionInputPurgeMode = MotionInputPurgeMode.TAIL;
 
-    protected readonly currentMotion: Array<Motion | Input> = [];
+    protected readonly currentMotion: Array<HeldInputDescriptor> = [];
 
     protected readonly normalMap: ReadonlyMap<Enum.KeyCode, Enum.NormalId>;
 
@@ -53,23 +53,50 @@ export default abstract class CombatController2D extends CombatController implem
 
     onKeyReleased({KeyCode: buttonPressed}: InputObject): void 
     {
-        const hasCharacterController = this.characterController.GetKeybinds().has(buttonPressed);
-        const hasCombatController = this.GetKeybinds().has(buttonPressed);
+        const keyInputs = this.GetKeybinds();
+        const hasCharacterController = keyInputs.has(buttonPressed);
+        const hasCombatController = keyInputs.has(buttonPressed);
         const arena = this.matchController.GetCurrentArena();
 
         if (!arena)
 
             return;
 
-        if (hasCharacterController || (hasCombatController && this.currentMotion.size() === 0)) 
+        // if (hasCharacterController || (hasCombatController && this.currentMotion.size() === 0)) 
+        //
+        //     this.PushMotion(Motion[ConvertMoveDirectionToMotion(this.GetMotionDirection(arena.config.Origin.Value))[0]]);
+        // allow refilling input in-case motion was executed (e.g. DP into crouch)
+        if (hasCharacterController /* || (hasCombatController && this.currentMotion.size() === 0) */) 
+        {
+            const pressedInput = keyInputs.get(buttonPressed)!
+            for (let i = this.currentMotion.size() - 1; i >= 0; i++)
+            {
+                if ((this.currentMotion[i][0] & (pressedInput | InputMode.Press)) > 0)
+                {
+                    this.currentMotion.push([pressedInput | InputMode.Release, DateTime.now().UnixTimestampMillis - this.currentMotion[i][1]]);
+                } else if (i === 0)
+                {
+                    warn("this shouldn't happen.")
+                    this.currentMotion.push([pressedInput | InputMode.Release, -1]); // how does this even happen?
+                }
+                
 
-            this.PushMotion(Motion[ConvertMoveDirectionToMotion(this.GetMotionDirection(arena.config.Origin.Value))[0]]);
+            }
+
+            this.currentMotion.push([pressedInput | InputMode.Release, DateTime.now().UnixTimestampMillis]);
+            for (const listener of this.motionInputEventHandlers)
+
+                task.spawn(() => listener.onMotionInputChanged?.(this.currentMotion));
+
+        }
     }
 
     onKeyPressed({KeyCode: buttonPressed, UserInputState: inputMode}: InputObject): void
     {
-        const hasCharacterController = this.characterController.GetKeybinds().has(buttonPressed);
-        const hasCombatController = this.GetKeybinds().has(buttonPressed);
+        const keyInputs = this.GetKeybinds();
+        const hasCombatController = keyInputs.has(buttonPressed);
+
+        // FIXME: remove this after testing is done
         if (buttonPressed === Enum.KeyCode.Backspace || buttonPressed === Enum.KeyCode.K)
 
             this.currentMotion.clear();
@@ -81,31 +108,24 @@ export default abstract class CombatController2D extends CombatController implem
 
             return;
 
-        // allow refilling input in-case motion was executed (e.g. DP into crouch)
-        if (hasCharacterController || (hasCombatController && this.currentMotion.size() === 0)) 
-
-            this.PushMotion(Motion[ConvertMoveDirectionToMotion(this.GetMotionDirection(arena.config.Origin.Value))[0]]);
-
         if (hasCombatController)
         {
-            const keyInput = this.GetKeybinds();
-            if (inputMode.Value === InputMode.Press)
-            {
-                this.currentMotion.push(keyInput.get(buttonPressed)!);
-                for (const listener of this.motionInputEventHandlers)
+            const pressedInput = keyInputs.get(buttonPressed)!
+            this.currentMotion.push([pressedInput | InputMode.Press, os.clock()]);
 
-                    task.spawn(() => listener.onMotionInputChanged?.(this.currentMotion));
+            for (const listener of this.motionInputEventHandlers)
 
-                this.SubmitMotionInput();
-            }
+                task.spawn(() => listener.onMotionInputChanged?.(this.currentMotion));
+
+            this.SubmitMotionInput();
         }
 
         return;
     }
 
-    public async PushMotion(motion: Motion)
+    public async PushInput(motionInput: number, duration: number = -1)
     {
-        this.currentMotion.push(motion);
+        this.currentMotion.push([motionInput, duration]);
 
         const currentMotion = [ ... this.currentMotion ];
         for (const listener of this.motionInputEventHandlers)
