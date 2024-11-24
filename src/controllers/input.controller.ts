@@ -17,6 +17,7 @@ export interface KeyboardEvents
     onKeyChanged?(inputObject: InputObject): void;
 }
 
+/* TODO: implement opt-in input layering + input sinking / passing */
 @Controller({})
 export default class Input implements OnStart, OnInit, OnRespawn
 {
@@ -98,7 +99,7 @@ export default class Input implements OnStart, OnInit, OnRespawn
             (class InputClass {
                 public BindInput(actionName: string, inputHandler: (inputObject: InputObject) => Enum.ContextActionResult | boolean | undefined | void, keys: (Enum.KeyCode | Enum.UserInputType)[])
                 {
-                    const actionId = `ShooterGame.${inputClass}.${actionName}`;
+                    const actionId = `QuarrelGame.${inputClass}.${actionName}`;
                     ContextActionService.BindAction(actionId, (_,__,inputObject) => inputHandler(inputObject), false, ...keys)
 
                     return new 
@@ -130,7 +131,7 @@ export default class Input implements OnStart, OnInit, OnRespawn
     {
         if (!this.gameFocused)
 
-            return;
+            return Enum.ContextActionResult.Sink;
 
         switch (inputObject.UserInputState)
         {
