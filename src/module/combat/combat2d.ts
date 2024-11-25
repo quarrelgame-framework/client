@@ -69,7 +69,7 @@ export default abstract class CombatController2D extends CombatController implem
         if (hasCharacterController /* || (hasCombatController && this.currentMotion.size() === 0) */) 
         {
             const pressedInput = keyInputs.get(buttonPressed)!
-            for (let i = this.currentMotion.size() - 1; i >= 0; i++)
+            for (let i = this.currentMotion.size() - 1; i >= 0; i--)
             {
                 if ((this.currentMotion[i][0] & (pressedInput | InputMode.Press)) > 0)
                 {
