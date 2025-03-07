@@ -1,12 +1,17 @@
 import { Dependency, Modding, OnRender, OnStart } from "@flamework/core";
 
-import { NullifyYComponent, Motion, Input, HeldInputDescriptor, MotionInput, InputMode, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, validateMotion, stringifyMotionInput, CharacterManager, SkillManager, SkillLike } from "@quarrelgame-framework/common";
+import { NullifyYComponent, Motion, Input, HeldInputDescriptor, MotionInput, InputMode, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, validateMotion, stringifyMotionInput, CharacterManager, SkillManager, SkillLike, Skill, GetInputFromInputState, GetMotionFromInputState, GetInputModeFromInputState, SkillFunction } from "@quarrelgame-framework/common";
 import { MatchController, OnMatchRespawn } from "controllers/match.controller";
 
 import { CombatController } from "module/combat";
 import { CharacterController2D } from "module/character/controller2d";
 import InputController, { KeyboardEvents } from "controllers/input.controller";
 import Client from "module/game/client";
+import { Constructor, isConstructor } from "@flamework/core/out/utility";
+
+// TODO: add motion death time which resets the queue
+// TODO: successful inputs reset the queue as well
+// add queue limit of 10 so we don't bsod players
 
 export interface MotionInputHandling
 {
@@ -37,7 +42,8 @@ export default abstract class CombatController2D extends CombatController implem
 {
     public static PurgeMode: MotionInputPurgeMode = MotionInputPurgeMode.TAIL;
 
-    protected readonly currentMotion: Array<HeldInputDescriptor> = [];
+    // have the default be neutral so the automatic 'neutral' release is able to be progressed through
+    protected readonly currentMotion: Array<HeldInputDescriptor> = [[Motion.Neutral | InputMode.Press, DateTime.now().UnixTimestampMillis]];
 
     protected readonly normalMap: ReadonlyMap<Enum.KeyCode, Enum.NormalId>;
 
@@ -51,55 +57,198 @@ export default abstract class CombatController2D extends CombatController implem
         this.normalMap = this.characterController.GetKeybinds();
     }
 
-    onKeyReleased({KeyCode: buttonPressed}: InputObject): void 
+
+    protected removeInputFromUnreleased(input: number)
+    {
+        this.unreleasedButtons = this.unreleasedButtons.mapFiltered((e) =>
+        {
+            // remove the input and mode from e
+            if ((e & input) === input)
+
+                e &= ~input;
+
+            else 
+
+                return e;
+
+
+            // when the input stripped away, it should just be the press input
+            if (e === InputMode.Press || e === 0x0)
+
+                return undefined;
+            
+
+
+            // make sure we're not putting down any duplicates
+            if (this.unreleasedButtons.find((f) => e === f))
+
+                return undefined;
+
+            return e | InputMode.Press;
+        });
+    }
+
+    private unreleasedButtons = new Array<number>();
+    onKeyReleased({KeyCode: buttonReleased}: InputObject): void 
     {
         const keyInputs = this.GetKeybinds();
-        const hasCharacterController = keyInputs.has(buttonPressed);
-        const hasCombatController = keyInputs.has(buttonPressed);
+        const characterEntity = this.characterController.GetEntity();
+        const charInputs = this.characterController.GetKeybinds();
+        const hasCharacterController = charInputs.has(buttonReleased);
+        const hasCombatController = keyInputs.has(buttonReleased);
         const arena = this.matchController.GetCurrentArena();
+        const previousMotionSize = this.currentMotion.size();
 
         if (!arena)
 
             return;
+            
+        if (!characterEntity)
 
-        // if (hasCharacterController || (hasCombatController && this.currentMotion.size() === 0)) 
-        //
-        //     this.PushMotion(Motion[ConvertMoveDirectionToMotion(this.GetMotionDirection(arena.config.Origin.Value))[0]]);
-        // allow refilling input in-case motion was executed (e.g. DP into crouch)
-        if (hasCharacterController /* || (hasCombatController && this.currentMotion.size() === 0) */) 
+            return;
+
+
+        // TODO: less repetition here, use function call for both
+        // and less function calls as a whole (more vars)
+        const filteredReleaseMotions = this.currentMotion.filter((e) => (e[0] & InputMode.Release) > 0);
+        if (hasCharacterController)
         {
-            const pressedInput = keyInputs.get(buttonPressed)!
+            // convert the input that was released to a motion
+            const releasedCardinal = this.normalMap.get(buttonReleased)!
+            const releasedMotion = Motion[ConvertMoveDirectionToMotion(GenerateRelativeVectorFromNormalId(this.characterController.GetOrigin(), releasedCardinal))[0]];
+            const currentMotion = this.currentMotion;
+            const latestPair = currentMotion[currentMotion.size() - 1];
+            this.removeInputFromUnreleased(releasedMotion);
+
+            // FIXME: fix key release system to send the actual released input
+            // instead of the current input after release
+            for (let i = currentMotion.size() - 1; i >= 0; i--)
+            {
+                const [inputState, timePressed, itemChanged] = currentMotion[i]
+                // no need to check if the input contains the motion since
+                // the filter makes that implicitly true
+                if ((inputState & releasedMotion) === releasedMotion)
+                {
+                    // if this index is a 'press' that introduces the released motion
+                    // AND the index prior did not contain the released motion,
+                    // then we know that this is the starting point
+                    if ((currentMotion[i - 1][0] & releasedMotion) === 0)
+                    {
+                        currentMotion[i][1] = DateTime.now().UnixTimestampMillis - this.currentMotion[i][1];
+
+                        // get the last input (which is guaranteed to have this motion)
+                        // and then remove this motion from it
+                        // WARNING: if this does not have the last input in it
+                        // then we have bigger problems to worry about
+                        const modelessState = ((latestPair[0] & ~releasedMotion) & ~InputMode.Press) & ~InputMode.Release;
+                        const outputDescriptor: HeldInputDescriptor = [releasedMotion | InputMode.Release, DateTime.now().UnixTimestampMillis];
+
+                        // check if this descriptor is really just 0x0 (no input at all) 
+                        // and if it is, add the "Neutral" with the press mode
+                        // if (modelessState === 0x0)
+                        // 
+                        //     currentMotion.push([releasedMotion | InputMode.Release, outputDescriptor[1]], [Motion.Neutral | InputMode.Press, DateTime.now().UnixTimestampMillis]);
+                        //
+                        // else 
+                        //
+                        //     currentMotion.push(outputDescriptor);
+
+                        currentMotion.push(outputDescriptor);
+                        break;
+                    }
+                }
+            }
+        } else if (hasCombatController) 
+        {
+            const input = keyInputs.get(buttonReleased)!; // hasCharacterController ? : keyInputs.get(buttonReleased)!;
+            const latestPair = this.currentMotion[this.currentMotion.size() - 1];
+            this.removeInputFromUnreleased(input);
+
             for (let i = this.currentMotion.size() - 1; i >= 0; i--)
             {
-                if ((this.currentMotion[i][0] & (pressedInput | InputMode.Press)) > 0)
+                const [state, time] = this.currentMotion[i];
+
+                if (((input | InputMode.Press) & state) > 0) 
                 {
-                    this.currentMotion.push([pressedInput | InputMode.Release, DateTime.now().UnixTimestampMillis - this.currentMotion[i][1]]);
-                } else if (i === 0)
-                {
-                    warn("this shouldn't happen.")
-                    this.currentMotion.push([pressedInput | InputMode.Release, -1]); // how does this even happen?
-                }
+
+                    if ((this.currentMotion[i - 1]?.[0] & input) === 0)
+                    
+                        this.currentMotion[i][1] = DateTime.now().UnixTimestampMillis - time;
+
+                    // same premise as above
+                    // const hasMotion = GetMotionFromInputState(latestPair[0]);
+                    // if (!hasMotion)
+                    // {
+                    //     print("no motion, filling...");
+                    //     // give latestPair[0] a motion (because for some reason it doesn't have it?)
+                    //     latestPair[0] |= Motion.Neutral;
+                    // } 
+
+                    if ((this.currentMotion[i - 1][0] & input) === 0)
+                    {
+                        this.currentMotion[i][1] = DateTime.now().UnixTimestampMillis - this.currentMotion[i][1];
+
+                        // get the last input (which is guaranteed to have this motion)
+                        // and then remove this motion from it
+                        // WARNING: if this does not have the last input in it
+                        // then we have bigger problems to worry about
+                        const modelessState = ((latestPair[0] & ~input) & ~InputMode.Press) & ~InputMode.Release;
+                        const outputDescriptor: HeldInputDescriptor = [input | InputMode.Release, DateTime.now().UnixTimestampMillis];
+
+                        // check if this descriptor is really just 0x0 (no input at all) 
+                        // and if it is, add the "Neutral" with the press mode
+                        print("combat: modless state is", modelessState, );
+                        this.currentMotion.push(outputDescriptor);
+
+                        break;
+                    }
+
+
+                    // if ((latestPair[0] & InputMode.Release) > 0)
+                    // {
+                    //     this.currentMotion.push([Motion.Neutral | InputMode.Press, DateTime.now().UnixTimestampMillis]);
+                    // }
+                    // else 
+                    // {
+                    //     this.currentMotion.push([((latestPair[0] & ~InputMode.Press) & ~input) | InputMode.Release, DateTime.now().UnixTimestampMillis]);
+                    // }
                 
 
+                    break;
+                }
             }
+        } 
 
-            this.currentMotion.push([pressedInput | InputMode.Release, DateTime.now().UnixTimestampMillis]);
+
+        print("urm end:", this.unreleasedButtons);
+        if (this.unreleasedButtons.size() === 0 && ((this.currentMotion[this.currentMotion.size() - 1]?.[0] ?? 0) & Motion.Neutral) === 0)
+        
+            this.currentMotion.push([Motion.Neutral | InputMode.Press, DateTime.now().UnixTimestampMillis]);
+        
+                 
+
+        if (previousMotionSize !== this.currentMotion.size())
+
             for (const listener of this.motionInputEventHandlers)
 
                 task.spawn(() => listener.onMotionInputChanged?.(this.currentMotion));
-
-        }
     }
 
-    onKeyPressed({KeyCode: buttonPressed, UserInputState: inputMode}: InputObject): void
+    onKeyPressed({KeyCode: buttonPressed}: InputObject): void
     {
+        const characterEntity = this.characterController.GetEntity();
         const keyInputs = this.GetKeybinds();
         const hasCombatController = keyInputs.has(buttonPressed);
+        const hasCharacterController = this.normalMap.has(buttonPressed);
+        const previousMotionSize = this.currentMotion.size();
+
 
         // FIXME: remove this after testing is done
         if (buttonPressed === Enum.KeyCode.Backspace || buttonPressed === Enum.KeyCode.K)
-
-            this.currentMotion.clear();
+        {
+            this.Reset();
+            return;
+        }
 
         /* TODO: support charge inputs */
 
@@ -108,17 +257,98 @@ export default abstract class CombatController2D extends CombatController implem
 
             return;
 
-        if (hasCombatController)
+        if (!characterEntity)
+
+            return;
+
+        let characterInput: number = Motion.Neutral;
+        let combatInput: number | undefined;
+        if (hasCharacterController)
         {
-            const pressedInput = keyInputs.get(buttonPressed)!
-            this.currentMotion.push([pressedInput | InputMode.Press, os.clock()]);
+            const axis = this.characterController.GetOrigin().LookVector;
+            assert(axis, "axis not found. this should not happen"); 
+
+            const rawInput = ConvertMoveDirectionToMotion(this.characterController.GetMoveDirection(this.characterController.GetOrigin()));
+            const rawMotion = this.characterController.GetKeybinds().get(buttonPressed);
+            characterInput = Motion[rawInput[0]];
+
+            warn("motion pressed:", rawInput, characterInput);
+            if (rawMotion)
+
+                this.unreleasedButtons.push(characterInput);
+
+
+        }
+        else if (hasCombatController)
+        {
+            
+            // FIXME: fix the bug where late inputs (e.g. 2 > (wait) > K) becomes 2 + Neutral K instead of
+            // just 2 + K
+
+            combatInput = keyInputs.get(buttonPressed)!;
+            const buttonsToDelete = [];
+            for (const i of this.unreleasedButtons)
+            {
+                // compile all inputs unreleased inputs and add it to the combatinput
+                if ((i & InputMode.Press) > 0)
+
+                    combatInput |= i;
+
+                else
+
+                    buttonsToDelete.push(i);
+                
+            }
+
+            // for (const i of buttonsToDelete)
+            // {
+            //     print("deleted", i);
+            //     this.unreleasedButtons = this.unreleasedButtons.filter((e) => !((e & i) > 0))
+            //     this.removeInputFromUnreleased(i);
+            // }
+
+            this.unreleasedButtons.push(combatInput);
+            
+            // defaulting to the detectedInput is ok since there is no concept of 
+            // 'duplicates' in bit flags afaik
+
+
+            // const lastInput = (this.currentMotion[this.currentMotion.size() - 1]);
+            // this.currentMotion.push([detectedInput | InputMode.Press, DateTime.now().UnixTimestampMillis]);
+        } 
+
+        print(this.unreleasedButtons, characterInput, combatInput);
+        if (this.unreleasedButtons.size() === 1)
+        {
+            // see if there are any uncompleted neutral inputs
+            const filteredMotions = this.currentMotion.filter((e) => (e[0] & Motion.Neutral) > 0)
+            for (let i = filteredMotions.size() - 1; i >= 0; i--)
+            {
+                const [thisMotion, pressTime] = filteredMotions[i]
+                if ((thisMotion & InputMode.Release) > 0)
+
+                    break; // no need to search if it's already completed
+
+                else
+                {
+                    this.currentMotion[i][1] = DateTime.now().UnixTimestampMillis - pressTime;
+                    this.currentMotion.push([Motion.Neutral | InputMode.Release, DateTime.now().UnixTimestampMillis]);
+                    break;
+                }
+            }
+        }
+
+
+        if (hasCombatController || hasCharacterController)
+        {
+            this.currentMotion.push([( (combatInput ?? characterInput) & ~InputMode.Release) | InputMode.Press, DateTime.now().UnixTimestampMillis]);
+        }
+
+        if (this.currentMotion.size() !== previousMotionSize)
 
             for (const listener of this.motionInputEventHandlers)
 
                 task.spawn(() => listener.onMotionInputChanged?.(this.currentMotion));
-
-            this.SubmitMotionInput();
-        }
 
         return;
     }
@@ -147,14 +377,33 @@ export default abstract class CombatController2D extends CombatController implem
 
             return new Promise((_, rej) => rej(false));
 
-        const matchingSkills = validateMotion(this.currentMotion, foundCharacter)
-            .map((e) => typeIs(e[1], "function") ? e[1](currentEntity) : e[1])
+        const matchingSkills = validateMotion(this.currentMotion, foundCharacter, [currentEntity])
+            // .map((e) => typeIs(e[1], "function") ? e[1](currentEntity) : e[1])
 
         const lastSkill = Dependency<SkillManager>().GetSkill(currentEntity.attributes.PreviousSkill ?? tostring({}));
         const decompiledSkills = [...foundCharacter.Skills]
         const noop: Callback = () => '';
-        const generateSkillWarning = (skills: [MotionInput, SkillLike][]) => 
-            noop(`No skills found for ${this.stringifyMotionInput(this.currentMotion)}. Skills list: ${skills.map(([motionInput, skill]) => `\n${this.stringifyMotionInput(motionInput)} => ${typeIs(skill, "function") ? skill().Name : skill.Name}`).reduce((e,a) => e + a, skills.size() === 0 ? "NONE" : "")}`)
+        const generateSkillWarning = (skills: [MotionInput, SkillLike | SkillFunction<Constructor<Skill.Skill>>][]) => 
+        {
+            const mappedSkills = skills.map(([motionInput, skill]) => {
+
+                let outSkill;
+                if (typeIs(skill, "function")) {
+                    const unwrappedSkill = skill();
+                    if (isConstructor(unwrappedSkill))
+
+                        outSkill = new unwrappedSkill();
+
+                    else outSkill = unwrappedSkill;
+
+                } outSkill = skill;
+
+                return `\n${stringifyMotionInput(motionInput)} => ${skill}`;
+            });
+
+            noop(`No skills found for ${this.stringifyMotionInput(this.currentMotion)}. Skills list: ${mappedSkills.reduce((e,a) => e + a, skills.size() === 0 ? "NONE" : "")}`)
+        };
+        
 
         if (currentEntity.IsNegative())
         {
@@ -179,11 +428,39 @@ export default abstract class CombatController2D extends CombatController implem
 
         if (matchingSkills.size() >= 1)
 
-            task.spawn(() => currentEntity?.ExecuteSkill(matchingSkills.map((e) => e.Id)).then((hitData) => hitData))
+            task.spawn(() => currentEntity?.ExecuteSkill(matchingSkills.map(([,e]) => e.Id)).then((hitData) => hitData))
 
-        this.currentMotion.clear();
+
+        this.Reset();
         return true;
     }
+
+    Reset(): void
+    {
+        this.currentMotion.clear();
+        // if #unreleasedButtons is > 0, it will automatically be released frame 1
+        this.currentMotion.push([Motion.Neutral | InputMode.Press, this.unreleasedButtons.size() > 0 ? 1 : DateTime.now().UnixTimestampMillis - 1/60]);
+
+
+        // TODO: if the code calls reset and this.unreleasedButtons is now cleared,
+        // there is an edge case where motion inputs like 623HS where if 3 is held
+        // during the cinematic then a desync occurs where the character is crouching
+        // however the combat believes that the player is in the Neutral state
+
+
+        if (this.unreleasedButtons.size() > 0)
+        {
+
+            this.currentMotion.push([Motion.Neutral | InputMode.Release, DateTime.now().UnixTimestampMillis]);
+            for (const i of this.unreleasedButtons)
+            
+                this.currentMotion.push([i | InputMode.Press, DateTime.now().UnixTimestampMillis]);
+        }
+       
+
+    }
+
+
 
     onStart(): void 
     {
@@ -218,7 +495,7 @@ export default abstract class CombatController2D extends CombatController implem
                     break;
 
                 default:
-                    this.currentMotion.clear();
+                    this.Reset();
             }
 
             this.timeoutDeltaTime = 0;
@@ -303,8 +580,8 @@ export default abstract class CombatController2D extends CombatController implem
         return stringifyMotionInput(motionInput);
     }
 
-    onMotionInputChanged(motionInput: MotionInput)
-    {
+    onMotionInputChanged(motionInput: MotionInput): void {
+      
     }
 }
 
