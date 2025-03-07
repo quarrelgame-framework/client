@@ -290,6 +290,11 @@ export abstract class CharacterController2D extends CharacterController implemen
         this.axis = typeIs(axis, "EnumItem") ? Vector3.FromNormalId(axis) : axis;
     }
 
+    public GetOrigin()
+    {
+        return this.axisRotatedOrigin;
+    }
+
     public SetEnabled(enabled: boolean)
     {
         this.enabled = enabled;
