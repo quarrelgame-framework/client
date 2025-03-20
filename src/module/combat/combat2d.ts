@@ -38,7 +38,7 @@ enum MotionInputPurgeMode
     TAIL
 }
 
-export default abstract class CombatController2D extends CombatController implements OnStart, OnRender, KeyboardEvents, MotionInputHandling, OnMatchRespawn
+export default abstract class CombatController2D extends CombatController implements OnStart, OnTick, KeyboardEvents, MotionInputHandling, OnMatchRespawn
 {
     public static MAX_QUEUE_SIZE = 16;
 
@@ -474,7 +474,7 @@ export default abstract class CombatController2D extends CombatController implem
 
     private timeoutDeltaTime: number = 0;
     private motionInputTimeoutMaximum: number = 2;
-    onRender(dt: number): void
+    onTick(dt: number): void
     {
         if (this.timeoutDeltaTime >= this.motionInputTimeoutMaximum)
         {
