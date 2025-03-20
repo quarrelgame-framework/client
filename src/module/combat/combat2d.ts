@@ -1,4 +1,4 @@
-import { Dependency, Modding, OnRender, OnStart } from "@flamework/core";
+import { Dependency, Modding, OnTick, OnStart } from "@flamework/core";
 
 import { NullifyYComponent, Motion, Input, HeldInputDescriptor, MotionInput, InputMode, ConvertMoveDirectionToMotion, GenerateRelativeVectorFromNormalId, validateMotion, stringifyMotionInput, CharacterManager, SkillManager, SkillLike, Skill, GetInputFromInputState, GetMotionFromInputState, GetInputModeFromInputState, SkillFunction } from "@quarrelgame-framework/common";
 import { MatchController, OnMatchRespawn } from "controllers/match.controller";
@@ -11,7 +11,7 @@ import { Constructor, isConstructor } from "@flamework/core/out/utility";
 
 // TODO: add motion death time which resets the queue
 // TODO: successful inputs reset the queue as well
-// add queue limit of 10 so we don't bsod players
+// TODO: add queue limit of 10 so we don't bsod players
 
 export interface MotionInputHandling
 {
@@ -40,7 +40,9 @@ enum MotionInputPurgeMode
 
 export default abstract class CombatController2D extends CombatController implements OnStart, OnRender, KeyboardEvents, MotionInputHandling, OnMatchRespawn
 {
-    public static PurgeMode: MotionInputPurgeMode = MotionInputPurgeMode.TAIL;
+    public static MAX_QUEUE_SIZE = 16;
+
+    public static PurgeMode: MotionInputPurgeMode = MotionInputPurgeMode.ALL;
 
     // have the default be neutral so the automatic 'neutral' release is able to be progressed through
     protected readonly currentMotion: Array<HeldInputDescriptor> = [[Motion.Neutral | InputMode.Press, DateTime.now().UnixTimestampMillis]];
@@ -51,7 +53,7 @@ export default abstract class CombatController2D extends CombatController implem
 
     protected keybindMap: Map<Enum.KeyCode, Input> = new Map();
 
-    constructor(protected client: Client, protected characterController: CharacterController2D, protected matchController: MatchController, protected inputController: InputController)
+    constructor(protected client: Client, protected characterController: CharacterController2D, protected matchController: MatchController, protected inputController: InputController, protected skillManager: SkillManager)
     {
         super();
         this.normalMap = this.characterController.GetKeybinds();
@@ -224,8 +226,6 @@ export default abstract class CombatController2D extends CombatController implem
         if (this.unreleasedButtons.size() === 0 && ((this.currentMotion[this.currentMotion.size() - 1]?.[0] ?? 0) & Motion.Neutral) === 0)
         
             this.currentMotion.push([Motion.Neutral | InputMode.Press, DateTime.now().UnixTimestampMillis]);
-        
-                 
 
         if (previousMotionSize !== this.currentMotion.size())
 
@@ -287,19 +287,6 @@ export default abstract class CombatController2D extends CombatController implem
 
             combatInput = keyInputs.get(buttonPressed)!;
             const buttonsToDelete = [];
-            for (const i of this.unreleasedButtons)
-            {
-                // compile all inputs unreleased inputs and add it to the combatinput
-                if ((i & InputMode.Press) > 0)
-
-                    combatInput |= i;
-
-                else
-
-                    buttonsToDelete.push(i);
-                
-            }
-
             // for (const i of buttonsToDelete)
             // {
             //     print("deleted", i);
@@ -308,6 +295,10 @@ export default abstract class CombatController2D extends CombatController implem
             // }
 
             this.unreleasedButtons.push(combatInput);
+            for (const i of this.unreleasedButtons)
+                
+                // compile all inputs unreleased inputs and add it to the combatinput
+                combatInput |= i;
             
             // defaulting to the detectedInput is ok since there is no concept of 
             // 'duplicates' in bit flags afaik
@@ -363,6 +354,8 @@ export default abstract class CombatController2D extends CombatController implem
             task.spawn(() => listener.onMotionInputChanged?.(currentMotion));
     }
 
+
+
     public async SubmitMotionInput(): Promise<boolean>
     {
         const characterId = this.characterController.GetCharacter()?.GetAttribute("CharacterId") as string;
@@ -377,7 +370,8 @@ export default abstract class CombatController2D extends CombatController implem
 
             return new Promise((_, rej) => rej(false));
 
-        const matchingSkills = validateMotion(this.currentMotion, foundCharacter, [currentEntity])
+        const matchingSkills = validateMotion(this.currentMotion, foundCharacter, 
+                                              { castingEntity: currentEntity, targetEntities: new Set(), closeEnemies: [], closeFriendlies: []})
             // .map((e) => typeIs(e[1], "function") ? e[1](currentEntity) : e[1])
 
         const lastSkill = Dependency<SkillManager>().GetSkill(currentEntity.attributes.PreviousSkill ?? tostring({}));
@@ -389,7 +383,7 @@ export default abstract class CombatController2D extends CombatController implem
 
                 let outSkill;
                 if (typeIs(skill, "function")) {
-                    const unwrappedSkill = skill();
+                    const unwrappedSkill = skill({ castingEntity: currentEntity, targetEntities: new Set(), closeEnemies: [], closeFriendlies: []})
                     if (isConstructor(unwrappedSkill))
 
                         outSkill = new unwrappedSkill();
@@ -412,7 +406,16 @@ export default abstract class CombatController2D extends CombatController implem
             const gatlingMap =  lastSkill?.Gatlings ?? [];
             const skillMap = new Map([...rekkaMap, ...gatlingMap]);
 
-            const matchingNegativeSkills = validateMotion(this.currentMotion, {Skills: skillMap});
+            const matchingNegativeSkills = validateMotion(
+                this.currentMotion, 
+                {Skills: skillMap}, 
+                { 
+                    castingEntity: currentEntity, 
+                    targetEntities: new Set(), 
+                    closeEnemies: [], 
+                    closeFriendlies: []
+                })
+
             const inner = matchingNegativeSkills.map((e) => typeIs(e[1], "function") ? e[1](currentEntity) : e[1]);
             for (const item of inner)
 
@@ -426,9 +429,10 @@ export default abstract class CombatController2D extends CombatController implem
 
             generateSkillWarning(decompiledSkills);
 
+
         if (matchingSkills.size() >= 1)
 
-            task.spawn(() => currentEntity?.ExecuteSkill(matchingSkills.map(([,e]) => e.Id)).then((hitData) => hitData))
+            task.spawn(() => currentEntity?.ExecuteSkill(matchingSkills.mapFiltered(([,e]) => this.skillManager.IdFromSkill(e))).then((hitData) => hitData))
 
 
         this.Reset();
@@ -574,6 +578,8 @@ export default abstract class CombatController2D extends CombatController implem
 
         return totalVector.Magnitude > 0 ? totalVector.Unit : totalVector;
     }
+
+    //TODO: move validateMotion into this controller
         
     public stringifyMotionInput(motionInput: MotionInput = this.currentMotion)
     {
