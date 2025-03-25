@@ -6,7 +6,7 @@ import { CharacterController } from "module/character";
 import { Functions } from "network";
 
 import { Players, Workspace } from "@rbxts/services";
-import {  EntityState,  NullifyYComponent, SessionType, GenerateRelativeVectorFromNormalId,  InputMode, InputResult } from "@quarrelgame-framework/common";
+import {  EntityState,  NullifyYComponent, SessionType, GenerateRelativeVectorFromNormalId,  InputMode, InputResult, MatchData } from "@quarrelgame-framework/common";
 import { Map as _Map } from "@quarrelgame-framework/common";
 import { MatchController, OnArenaChange } from "controllers/match.controller";
 
@@ -31,11 +31,7 @@ export abstract class CharacterController2D extends CharacterController implemen
     private invisibleWallSets = new Set<Folder>();
     onArenaChanged(
         _: string,
-        arenaInstance: Model & {
-            config: _Map.ConfigurationToValue;
-            script?: Actor | undefined;
-            model: Folder;
-        },
+        arenaInstance: MatchData["Arena"]     
     ): void
     {
         for (const wallSet of this.invisibleWallSets)
@@ -54,7 +50,8 @@ export abstract class CharacterController2D extends CharacterController implemen
         this.axis = arenaInstance.config.Axis.Value;
 
         const { config } = arenaInstance;
-        const { Size, Origin } = config;
+        const { Origin } = config;
+        const Size = config.Size.IsA("NumberValue") ? { Value: Vector3.one.mul(config.Size.Value) } : config.Size;
 
         const Transparency = 1;
         const CanQuery = false;
