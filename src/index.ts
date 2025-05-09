@@ -20,6 +20,7 @@ export * from "module/character";
 export * from "module/combat";
 
 export * from "module/game/client";
+export * from "module/game/rollback";
 
 export * from "lib/player";
 
